@@ -1,0 +1,23 @@
+[package]
+name = "subdomain_manager"
+version = "0.0.1"
+
+[addresses]
+addr = "_"
+aptos_names = "_"
+aptos_names_v2_1 = "_"
+router = "_"
+# These ones are required transitively.
+aptos_names_admin = "_"
+aptos_names_funds = "_"
+router_signer = "_"
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dependencies.router]
+git = "https://github.com/aptos-labs/aptos-names-contracts.git"
+rev = "main"
+subdir = "router"
