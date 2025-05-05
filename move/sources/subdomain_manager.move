@@ -1,4 +1,5 @@
 module addr::subdomain_manager {
+    use addr::keyless;
     use std::error;
     use std::option::{Self, Option};
     use std::signer;
@@ -48,8 +49,11 @@ module addr::subdomain_manager {
     struct SubdomainManager has key {
         /// The domain that we are managing subdomains for.
         domain: String,
+        /// If true, only keyless accounts can claim a subdomain.
+        keyless_only: bool,
         /// The addresses that have claimed a subdomain, mapped to the subdomain they claimed.
         claimed_addresses: SmartTable<address, String>,
+        /// If false, the manager is disabled and people cannot claim subdomains.
         is_enabled: bool,
         extend_ref: ExtendRef
     }
@@ -69,7 +73,9 @@ module addr::subdomain_manager {
 
     /// Create a new manager for a domain. The caller must own the domain. Ownership
     /// of the domain will be transferred to the manager.
-    public entry fun create_manager(caller: &signer, domain: String) {
+    public entry fun create_manager(
+        caller: &signer, domain: String, keyless_only: bool
+    ) {
         let caller_address = signer::address_of(caller);
 
         // Confirm the caller owns the domain.
@@ -89,6 +95,7 @@ module addr::subdomain_manager {
         // Create the manager data.
         let manager_ = SubdomainManager {
             domain,
+            keyless_only,
             claimed_addresses: smart_table::new(),
             is_enabled: true,
             extend_ref: object::generate_extend_ref(&manager_constructor_ref)
@@ -127,11 +134,14 @@ module addr::subdomain_manager {
     }
 
     /// Claim a subdomain. It will be pointed at and sent to the receiver's address.
+    /// The caller must pass in `public_key_bytes` if `keyless_only` is true. Otherwise
+    /// they can just pass in an empty vector.
     public entry fun claim_subdomain(
         caller: &signer,
         admin: &signer,
         manager: Object<SubdomainManager>,
-        subdomain: String
+        subdomain: String,
+        public_key_bytes: vector<u8>
     ) acquires SubdomainManager {
         let manager_address = object::object_address(&manager);
         let manager_ = borrow_global_mut<SubdomainManager>(manager_address);
@@ -172,6 +182,11 @@ module addr::subdomain_manager {
                     )
                 );
             }
+        };
+
+        // If `keyless_only` is true, validate that the caller is a keyless account.
+        if (manager_.keyless_only) {
+            keyless::assert_is_keyless(caller_address, public_key_bytes);
         };
 
         // Record that the caller has claimed a subdomain.
@@ -237,17 +252,20 @@ module addr::subdomain_manager {
         domain: String, subdomain: String, address: address
     ): SubdomainAvailableResult {
         // Can't claim a subdomain that is already claimed.
-        if (!can_register(domain, option::some(subdomain)))
-            return SubdomainAvailableResult::SUBDOMAIN_ALREADY_CLAIMED;
+        if (!can_register(domain, option::some(subdomain))) {
+            return SubdomainAvailableResult::SUBDOMAIN_ALREADY_CLAIMED
+        };
 
         // If the domain is not registered, then the subdomain is available.
-        if (can_register(subdomain, option::none()))
-            return SubdomainAvailableResult::AVAILABLE;
+        if (can_register(subdomain, option::none())) {
+            return SubdomainAvailableResult::AVAILABLE
+        };
 
         // If the desired subdomain is already registered as a domain, then only the
         // owner of the domain can claim the subdomain.
-        if (is_name_owner(address, subdomain, option::none()))
-            return SubdomainAvailableResult::CANNOT_CLAIM_SUBDOMAIN_IF_DOMAIN_OWNED_BY_OTHER_ADDRESS;
+        if (is_name_owner(address, subdomain, option::none())) {
+            return SubdomainAvailableResult::CANNOT_CLAIM_SUBDOMAIN_IF_DOMAIN_OWNED_BY_OTHER_ADDRESS
+        };
 
         SubdomainAvailableResult::AVAILABLE
     }
