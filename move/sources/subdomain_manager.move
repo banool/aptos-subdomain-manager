@@ -5,7 +5,7 @@ module addr::subdomain_manager {
     use std::signer;
     use std::string::String;
     use aptos_std::smart_table::{Self, SmartTable};
-    use aptos_std::object::{Self, Object, ExtendRef};
+    use aptos_std::object::{Self, Object, DeleteRef, ExtendRef};
     use aptos_framework::event;
     use aptos_framework::timestamp;
     use aptos_names::domains;
@@ -34,28 +34,34 @@ module addr::subdomain_manager {
     /// You cannot make a manager for this domain because you don't own it.
     const ENOT_DOMAIN_OWNER: u64 = 3;
 
+    /// You cannot claim a subdomain without the admin's approval.
+    const E_CAN_ONLY_CLAIM_WITH_ADMIN_APPROVAL: u64 = 4;
+
     /// Only the admin is authorized to perform this operation.
-    const ENOT_ADMIN: u64 = 4;
+    const ENOT_ADMIN: u64 = 5;
 
     /// You have already claimed a subdomain.
-    const ECALLER_HAS_ALREADY_CLAIMED: u64 = 5;
+    const ECALLER_HAS_ALREADY_CLAIMED: u64 = 6;
 
     /// The subdomain has already been claimed by another address.
-    const ESUBDOMAIN_ALREADY_CLAIMED: u64 = 6;
+    const ESUBDOMAIN_ALREADY_CLAIMED: u64 = 7;
 
     /// You cannot claim this subdomain because someone else already owns the top level domain with the same name.
-    const ECANNOT_CLAIM_SUBDOMAIN_IF_DOMAIN_OWNED_BY_OTHER_ADDRESS: u64 = 7;
+    const ECANNOT_CLAIM_SUBDOMAIN_IF_DOMAIN_OWNED_BY_OTHER_ADDRESS: u64 = 8;
 
     struct SubdomainManager has key {
         /// The domain that we are managing subdomains for.
         domain: String,
         /// If true, only keyless accounts can claim a subdomain.
         keyless_only: bool,
+        /// If true, `claim_subdomain_without_admin_approval` will be disabled.
+        claim_only_with_admin_approval: bool,
         /// The addresses that have claimed a subdomain, mapped to the subdomain they claimed.
         claimed_addresses: SmartTable<address, String>,
         /// If false, the manager is disabled and people cannot claim subdomains.
         is_enabled: bool,
-        extend_ref: ExtendRef
+        extend_ref: ExtendRef,
+        delete_ref: DeleteRef
     }
 
     #[event]
@@ -74,7 +80,10 @@ module addr::subdomain_manager {
     /// Create a new manager for a domain. The caller must own the domain. Ownership
     /// of the domain will be transferred to the manager.
     public entry fun create_manager(
-        caller: &signer, domain: String, keyless_only: bool
+        caller: &signer,
+        domain: String,
+        keyless_only: bool,
+        claim_only_with_admin_approval: bool
     ) {
         let caller_address = signer::address_of(caller);
 
@@ -82,7 +91,7 @@ module addr::subdomain_manager {
         let owner_addr = get_owner_addr(domain, option::none());
         assert!(
             owner_addr.is_some(),
-            error::invalid_state(ENOT_DOMAIN_OWNER)
+            error::invalid_state(ENO_DOMAIN_OWNER)
         );
         assert!(
             *owner_addr.borrow() == caller_address,
@@ -96,9 +105,11 @@ module addr::subdomain_manager {
         let manager_ = SubdomainManager {
             domain,
             keyless_only,
+            claim_only_with_admin_approval,
             claimed_addresses: smart_table::new(),
             is_enabled: true,
-            extend_ref: object::generate_extend_ref(&manager_constructor_ref)
+            extend_ref: object::generate_extend_ref(&manager_constructor_ref),
+            delete_ref: object::generate_delete_ref(&manager_constructor_ref)
         };
         let manager_signer = object::generate_signer(&manager_constructor_ref);
 
@@ -135,7 +146,8 @@ module addr::subdomain_manager {
 
     /// Claim a subdomain. It will be pointed at and sent to the receiver's address.
     /// The caller must pass in `public_key_bytes` if `keyless_only` is true. Otherwise
-    /// they can just pass in an empty vector.
+    /// they can just pass in an empty vector. The admin (owner of the manager object)
+    /// must cosign this function call.
     public entry fun claim_subdomain(
         caller: &signer,
         admin: &signer,
@@ -146,17 +158,49 @@ module addr::subdomain_manager {
         let manager_address = object::object_address(&manager);
         let manager_ = borrow_global_mut<SubdomainManager>(manager_address);
 
-        // Make sure the manager is enabled.
-        assert!(manager_.is_enabled, error::unavailable(ENOT_ENABLED));
-
-        let caller_address = signer::address_of(caller);
-        let admin_address = signer::address_of(admin);
-
         // Bail if the admin is not really the admin (owner of the manager object).
+        let admin_address = signer::address_of(admin);
         assert!(
             object::is_owner(manager, admin_address),
             error::invalid_state(ENOT_ADMIN)
         );
+
+        claim_subdomain_inner(caller, manager_, subdomain, public_key_bytes);
+    }
+
+    /// Claim a subdomain. It will be pointed at and sent to the receiver's address.
+    /// The caller must pass in `public_key_bytes` if `keyless_only` is true. Otherwise
+    /// they can just pass in an empty vector. This can only be called if the manager
+    /// was created with `claim_only_with_admin_approval` set to false.
+    public entry fun claim_subdomain_without_admin_approval(
+        caller: &signer,
+        manager: Object<SubdomainManager>,
+        subdomain: String,
+        public_key_bytes: vector<u8>
+    ) acquires SubdomainManager {
+        let manager_address = object::object_address(&manager);
+        let manager_ = borrow_global_mut<SubdomainManager>(manager_address);
+
+        // Bail if `claim_only_with_admin_approval` is true.
+        if (manager_.claim_only_with_admin_approval) {
+            assert!(
+                false, error::permission_denied(E_CAN_ONLY_CLAIM_WITH_ADMIN_APPROVAL)
+            );
+        };
+
+        claim_subdomain_inner(caller, manager_, subdomain, public_key_bytes);
+    }
+
+    fun claim_subdomain_inner(
+        caller: &signer,
+        manager_: &mut SubdomainManager,
+        subdomain: String,
+        public_key_bytes: vector<u8>
+    ) {
+        // Make sure the manager is enabled.
+        assert!(manager_.is_enabled, error::unavailable(ENOT_ENABLED));
+
+        let caller_address = signer::address_of(caller);
 
         // Ensure the caller has not already claimed a subdomain.
         let caller_has_already_claimed =
@@ -301,5 +345,43 @@ module addr::subdomain_manager {
             option::some(manager_address),
             option::some(manager_address)
         );
+    }
+
+    /// Return the domain owned by a manager to the caller (the admin), delete the manager.
+    public entry fun delete_manager(
+        caller: &signer, manager: Object<SubdomainManager>
+    ) acquires SubdomainManager {
+        let caller_address = signer::address_of(caller);
+        assert!(
+            object::is_owner(manager, caller_address),
+            error::invalid_state(ENOT_ADMIN)
+        );
+
+        let manager_address = object::object_address(&manager);
+        let manager_ = move_from<SubdomainManager>(manager_address);
+
+        // Transfer the domain back to the caller.
+        let domain_token_address =
+            v2_1_domains::get_token_addr(manager_.domain, option::none());
+        object::transfer(
+            caller,
+            object::address_to_object<v2_1_domains::NameRecord>(domain_token_address),
+            caller_address
+        );
+
+        let SubdomainManager {
+            domain: _domain,
+            keyless_only: _keyless_only,
+            claim_only_with_admin_approval: _claim_only_with_admin_approval,
+            claimed_addresses,
+            is_enabled: _is_enabled,
+            extend_ref: _extend_ref,
+            delete_ref
+        } = manager_;
+
+        claimed_addresses.destroy();
+
+        // Delete the manager.
+        object::delete(delete_ref);
     }
 }
