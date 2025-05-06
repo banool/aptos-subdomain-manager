@@ -12,10 +12,20 @@ To create a manager for a domain that you own (on testnet you can claim a domain
 
 Make sure to look at the txn and find the object address of the manager (look for the `to` field of the `object::TransferEvent` event).
 
+For the sake of development you might sometimes want to reclaim a subdomain back from someone who claimed it. You can do that with this function:
+```
+./scripts/explorer.sh testnet reclaim_subdomain
+```
+
 ## Development
 To compile:
 ```
 aptos move compile --named-addresses addr=0x5,aptos_names=0x5,aptos_names_v2_1=0x5,router=0x5,aptos_names_admin=0x5,aptos_names_funds=0x5,router_signer=0x5
+```
+
+To test:
+```
+./scripts/test.sh
 ```
 
 To publish on testnet:
