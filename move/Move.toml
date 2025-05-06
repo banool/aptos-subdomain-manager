@@ -21,3 +21,9 @@ subdir = "aptos-framework"
 git = "https://github.com/aptos-labs/aptos-names-contracts.git"
 rev = "main"
 subdir = "router"
+
+# This is only required for testing.
+[dev-dependencies.AptosToken]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-token"
