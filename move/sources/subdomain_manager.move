@@ -124,10 +124,10 @@ module addr::subdomain_manager {
             claim_only_with_admin_approval,
             claimed_addresses: smart_table::new(),
             is_enabled: true,
-            extend_ref: object::generate_extend_ref(&manager_constructor_ref),
-            delete_ref: object::generate_delete_ref(&manager_constructor_ref)
+            extend_ref: manager_constructor_ref.generate_extend_ref(),
+            delete_ref: manager_constructor_ref.generate_delete_ref()
         };
-        let manager_signer = object::generate_signer(&manager_constructor_ref);
+        let manager_signer = manager_constructor_ref.generate_signer();
 
         // Move the manager data to the manager object.
         move_to(&manager_signer, manager_);
@@ -135,7 +135,7 @@ module addr::subdomain_manager {
         // Transfer ownership of the domain (the token) to the manager. TODO: Is this
         // sufficient, or do I need to do all that v1 stuff in router::transfer_name.
         let manager_address =
-            object::address_from_constructor_ref(&manager_constructor_ref);
+            manager_constructor_ref.address_from_constructor_ref();
         let domain_token_address = v2_1_domains::get_token_addr(domain, option::none());
         object::transfer(
             caller,
@@ -143,21 +143,21 @@ module addr::subdomain_manager {
             manager_address
         );
 
-        object::object_from_constructor_ref(&manager_constructor_ref)
+        manager_constructor_ref.object_from_constructor_ref()
     }
 
     /// Set whether the manager is enabled or not.
     public entry fun set_enabled(
         caller: &signer, manager: Object<SubdomainManager>, is_enabled: bool
-    ) acquires SubdomainManager {
+    ) {
         let caller_address = signer::address_of(caller);
         assert!(
-            object::is_owner(manager, caller_address),
+            manager.is_owner(caller_address),
             error::invalid_state(ENOT_ADMIN)
         );
 
-        let manager_address = object::object_address(&manager);
-        let manager_ = borrow_global_mut<SubdomainManager>(manager_address);
+        let manager_address = manager.object_address();
+        let manager_ = &mut SubdomainManager[manager_address];
 
         manager_.is_enabled = is_enabled;
     }
@@ -172,14 +172,14 @@ module addr::subdomain_manager {
         manager: Object<SubdomainManager>,
         subdomain: String,
         public_key_bytes: vector<u8>
-    ) acquires SubdomainManager {
-        let manager_address = object::object_address(&manager);
-        let manager_ = borrow_global_mut<SubdomainManager>(manager_address);
+    ) {
+        let manager_address = manager.object_address();
+        let manager_ = &mut SubdomainManager[manager_address];
 
         // Bail if the admin is not really the admin (owner of the manager object).
         let admin_address = signer::address_of(admin);
         assert!(
-            object::is_owner(manager, admin_address),
+            manager.is_owner(admin_address),
             error::invalid_state(ENOT_ADMIN)
         );
 
@@ -195,9 +195,9 @@ module addr::subdomain_manager {
         manager: Object<SubdomainManager>,
         subdomain: String,
         public_key_bytes: vector<u8>
-    ) acquires SubdomainManager {
-        let manager_address = object::object_address(&manager);
-        let manager_ = borrow_global_mut<SubdomainManager>(manager_address);
+    ) {
+        let manager_address = manager.object_address();
+        let manager_ = &mut SubdomainManager[manager_address];
 
         // Bail if `claim_only_with_admin_approval` is true.
         if (manager_.claim_only_with_admin_approval) {
@@ -255,7 +255,7 @@ module addr::subdomain_manager {
             timestamp::now_seconds() + REGISTRATION_DURATION_SECONDS;
 
         // Register the subdomain, point it and transfer it to the caller.
-        let object_signer = object::generate_signer_for_extending(&manager_.extend_ref);
+        let object_signer = manager_.extend_ref.generate_signer_for_extending();
         register_subdomain(
             &object_signer,
             manager_.domain,
@@ -283,9 +283,9 @@ module addr::subdomain_manager {
     /// have already claimed a subdomain.
     public fun can_claim(
         manager: Object<SubdomainManager>, address: address
-    ): bool acquires SubdomainManager {
-        let manager_address = object::object_address(&manager);
-        let manager_ = borrow_global<SubdomainManager>(manager_address);
+    ): bool {
+        let manager_address = manager.object_address();
+        let manager_ = &SubdomainManager[manager_address];
         !manager_.claimed_addresses.contains(address)
     }
 
@@ -332,15 +332,15 @@ module addr::subdomain_manager {
     /// it available for someone to claim again.
     public entry fun reclaim_subdomain(
         caller: &signer, manager: Object<SubdomainManager>, subdomain: String
-    ) acquires SubdomainManager {
+    ) {
         let caller_address = signer::address_of(caller);
         assert!(
-            object::is_owner(manager, caller_address),
+            manager.is_owner(caller_address),
             error::invalid_state(ENOT_ADMIN)
         );
 
-        let manager_address = object::object_address(&manager);
-        let manager_ = borrow_global_mut<SubdomainManager>(manager_address);
+        let manager_address = manager.object_address();
+        let manager_ = &mut SubdomainManager[manager_address];
 
         // Let the current owner of the subdomain claim another subdomain.
         let subdomain_target_addr =
@@ -350,7 +350,7 @@ module addr::subdomain_manager {
         // Transfer ownership of the "ANS app signer", remove the target address. This
         // makes it eligible for claiming again.
         let manager_object_signer =
-            object::generate_signer_for_extending(&manager_.extend_ref);
+            manager_.extend_ref.generate_signer_for_extending();
         domain_admin_transfer_subdomain(
             &manager_object_signer,
             manager_.domain,
@@ -365,15 +365,15 @@ module addr::subdomain_manager {
     /// is_enabled flag.
     public entry fun force_register_subdomain(
         caller: &signer, manager: Object<SubdomainManager>, subdomain: String
-    ) acquires SubdomainManager {
+    ) {
         let caller_address = signer::address_of(caller);
         assert!(
-            object::is_owner(manager, caller_address),
+            manager.is_owner(caller_address),
             error::invalid_state(ENOT_ADMIN)
         );
 
-        let manager_address = object::object_address(&manager);
-        let manager_ = borrow_global<SubdomainManager>(manager_address);
+        let manager_address = manager.object_address();
+        let manager_ = &SubdomainManager[manager_address];
 
         // We need to set a expiration time in the future, even though it will be
         // ignored and follow the domain expiration.
@@ -381,7 +381,7 @@ module addr::subdomain_manager {
             timestamp::now_seconds() + REGISTRATION_DURATION_SECONDS;
 
         let manager_object_signer =
-            object::generate_signer_for_extending(&manager_.extend_ref);
+            manager_.extend_ref.generate_signer_for_extending();
         register_subdomain(
             &manager_object_signer,
             manager_.domain,
@@ -397,14 +397,14 @@ module addr::subdomain_manager {
     /// Return the domain owned by a manager to the caller (the admin), delete the manager.
     public entry fun delete_manager(
         caller: &signer, manager: Object<SubdomainManager>
-    ) acquires SubdomainManager {
+    ) {
         let caller_address = signer::address_of(caller);
         assert!(
-            object::is_owner(manager, caller_address),
+            manager.is_owner(caller_address),
             error::invalid_state(ENOT_ADMIN)
         );
 
-        let manager_address = object::object_address(&manager);
+        let manager_address = manager.object_address();
         let manager_ = move_from<SubdomainManager>(manager_address);
 
         // Transfer the domain back to the caller.
@@ -429,7 +429,7 @@ module addr::subdomain_manager {
         claimed_addresses.destroy();
 
         // Delete the manager.
-        object::delete(delete_ref);
+        delete_ref.delete();
     }
 
     ///////////////////////////////
@@ -546,7 +546,7 @@ module addr::subdomain_manager {
         user1: signer,
         user2: signer,
         aptos_framework: signer
-    ) acquires SubdomainManager {
+    ) {
         setup_test(
             &router,
             &aptos_names,
@@ -624,7 +624,7 @@ module addr::subdomain_manager {
         user1: signer,
         user2: signer,
         aptos_framework: signer
-    ) acquires SubdomainManager {
+    ) {
         setup_test(
             &router,
             &aptos_names,
@@ -688,7 +688,7 @@ module addr::subdomain_manager {
         user1: signer,
         user2: signer,
         aptos_framework: signer
-    ) acquires SubdomainManager {
+    ) {
         setup_test(
             &router,
             &aptos_names,
