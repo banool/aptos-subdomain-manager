@@ -348,12 +348,14 @@ module addr::subdomain_manager {
         let manager_ = borrow_global_mut<SubdomainManager>(manager_address);
 
         // Let the current owner of the subdomain claim another subdomain.
-        let subdomain_target_addr = router::get_target_addr(manager_.domain, option::some(subdomain));
+        let subdomain_target_addr =
+            router::get_target_addr(manager_.domain, option::some(subdomain));
         manager_.claimed_addresses.remove(subdomain_target_addr.extract());
 
         // Transfer ownership of the "ANS app signer", remove the target address. This
         // makes it eligible for claiming again.
-        let manager_object_signer = object::generate_signer_for_extending(&manager_.extend_ref);
+        let manager_object_signer =
+            object::generate_signer_for_extending(&manager_.extend_ref);
         domain_admin_transfer_subdomain(
             &manager_object_signer,
             manager_.domain,
@@ -383,7 +385,8 @@ module addr::subdomain_manager {
         let expiration_time_sec: u64 =
             timestamp::now_seconds() + REGISTRATION_DURATION_SECONDS;
 
-        let manager_object_signer = object::generate_signer_for_extending(&manager_.extend_ref);
+        let manager_object_signer =
+            object::generate_signer_for_extending(&manager_.extend_ref);
         register_subdomain(
             &manager_object_signer,
             manager_.domain,
@@ -498,7 +501,7 @@ module addr::subdomain_manager {
         manager: &signer,
         user1: &signer,
         user2: &signer,
-        aptos_framework: &signer,
+        aptos_framework: &signer
     ) {
         set_up_testing_time_env(aptos_framework, 1746520524);
 
@@ -520,8 +523,12 @@ module addr::subdomain_manager {
         router::init_module_for_test(router);
         domains::init_module_for_test(aptos_names);
         v2_1_domains::init_module_for_test(aptos_names_v2_1);
-        config::set_fund_destination_address_test_only(signer::address_of(aptos_framework));
-        v2_1_config::set_fund_destination_address_test_only(signer::address_of(aptos_framework));
+        config::set_fund_destination_address_test_only(
+            signer::address_of(aptos_framework)
+        );
+        v2_1_config::set_fund_destination_address_test_only(
+            signer::address_of(aptos_framework)
+        );
         router::set_mode(router, 1);
     }
 
@@ -533,7 +540,7 @@ module addr::subdomain_manager {
             manager = @0x100,
             user1 = @0x101,
             user2 = @0x102,
-            aptos_framework = @aptos_framework,
+            aptos_framework = @aptos_framework
         )
     ]
     public entry fun test_basic_flow(
@@ -543,7 +550,7 @@ module addr::subdomain_manager {
         manager: signer,
         user1: signer,
         user2: signer,
-        aptos_framework: signer,
+        aptos_framework: signer
     ) acquires SubdomainManager {
         setup_test(
             &router,
@@ -552,7 +559,7 @@ module addr::subdomain_manager {
             &manager,
             &user1,
             &user2,
-            &aptos_framework,
+            &aptos_framework
         );
 
         let manager_address = signer::address_of(&manager);
@@ -567,13 +574,20 @@ module addr::subdomain_manager {
         let sub1 = string::utf8(b"mysub1");
 
         // Create the manager.
-        let manager_object = create_manager_inner(&manager, string::utf8(TESTING_DOMAIN), false, false);
+        let manager_object =
+            create_manager_inner(
+                &manager,
+                string::utf8(TESTING_DOMAIN),
+                false,
+                false
+            );
 
         // Claim a subdomain as user 1.
         claim_subdomain_without_admin_approval(&user1, manager_object, sub1, vector[]);
 
         // Confirm that user 1 has the subdomain.
-        let sub1_target_addr = router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
+        let sub1_target_addr =
+            router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
         assert!(sub1_target_addr.is_some(), 0);
         assert!(sub1_target_addr.borrow() == &signer::address_of(&user1), 0);
 
@@ -581,27 +595,31 @@ module addr::subdomain_manager {
         reclaim_subdomain(&manager, manager_object, sub1);
 
         // Confirm that user 1 no longer has the subdomain.
-        let sub1_target_addr = router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
+        let sub1_target_addr =
+            router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
         assert!(sub1_target_addr.is_none(), 0);
 
         // Confirm that user 2 can claim the subdomain now.
         claim_subdomain_without_admin_approval(&user2, manager_object, sub1, vector[]);
 
         // Confirm that user 2 has the subdomain.
-        let sub1_target_addr = router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
+        let sub1_target_addr =
+            router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
         assert!(sub1_target_addr.is_some(), 0);
         assert!(sub1_target_addr.borrow() == &signer::address_of(&user2), 0);
     }
 
-    #[test(
-        router = @router,
-        aptos_names = @aptos_names,
-        aptos_names_v2_1 = @aptos_names_v2_1,
-        manager = @0x100,
-        user1 = @0x123,
-        user2 = @0x456,
-        aptos_framework = @0x1,
-    )]
+    #[
+        test(
+            router = @router,
+            aptos_names = @aptos_names,
+            aptos_names_v2_1 = @aptos_names_v2_1,
+            manager = @0x100,
+            user1 = @0x123,
+            user2 = @0x456,
+            aptos_framework = @0x1
+        )
+    ]
     #[expected_failure(abort_code = 327687, location = Self)]
     fun test_cannot_claim_existing_subdomain(
         router: signer,
@@ -610,7 +628,7 @@ module addr::subdomain_manager {
         manager: signer,
         user1: signer,
         user2: signer,
-        aptos_framework: signer,
+        aptos_framework: signer
     ) acquires SubdomainManager {
         setup_test(
             &router,
@@ -619,7 +637,7 @@ module addr::subdomain_manager {
             &manager,
             &user1,
             &user2,
-            &aptos_framework,
+            &aptos_framework
         );
 
         let manager_address = signer::address_of(&manager);
@@ -634,13 +652,20 @@ module addr::subdomain_manager {
         let sub1 = string::utf8(b"mysub1");
 
         // Create the manager.
-        let manager_object = create_manager_inner(&manager, string::utf8(TESTING_DOMAIN), false, false);
+        let manager_object =
+            create_manager_inner(
+                &manager,
+                string::utf8(TESTING_DOMAIN),
+                false,
+                false
+            );
 
         // Claim a subdomain as user 1.
         claim_subdomain_without_admin_approval(&user1, manager_object, sub1, vector[]);
 
         // Confirm that user 1 has the subdomain.
-        let sub1_target_addr = router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
+        let sub1_target_addr =
+            router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
         assert!(sub1_target_addr.is_some(), 0);
         assert!(sub1_target_addr.borrow() == &signer::address_of(&user1), 0);
 
@@ -648,15 +673,17 @@ module addr::subdomain_manager {
         claim_subdomain_without_admin_approval(&user2, manager_object, sub1, vector[]);
     }
 
-    #[test(
-        router = @router,
-        aptos_names = @aptos_names,
-        aptos_names_v2_1 = @aptos_names_v2_1,
-        manager = @0x100,
-        user1 = @0x123,
-        user2 = @0x456,
-        aptos_framework = @0x1,
-    )]
+    #[
+        test(
+            router = @router,
+            aptos_names = @aptos_names,
+            aptos_names_v2_1 = @aptos_names_v2_1,
+            manager = @0x100,
+            user1 = @0x123,
+            user2 = @0x456,
+            aptos_framework = @0x1
+        )
+    ]
     #[expected_failure(abort_code = 196614, location = Self)]
     fun test_cannot_claim_twice(
         router: signer,
@@ -665,7 +692,7 @@ module addr::subdomain_manager {
         manager: signer,
         user1: signer,
         user2: signer,
-        aptos_framework: signer,
+        aptos_framework: signer
     ) acquires SubdomainManager {
         setup_test(
             &router,
@@ -674,7 +701,7 @@ module addr::subdomain_manager {
             &manager,
             &user1,
             &user2,
-            &aptos_framework,
+            &aptos_framework
         );
 
         let manager_address = signer::address_of(&manager);
@@ -689,13 +716,20 @@ module addr::subdomain_manager {
         let sub1 = string::utf8(b"mysub1");
         let sub2 = string::utf8(b"mysub2");
         // Create the manager.
-        let manager_object = create_manager_inner(&manager, string::utf8(TESTING_DOMAIN), false, false);
+        let manager_object =
+            create_manager_inner(
+                &manager,
+                string::utf8(TESTING_DOMAIN),
+                false,
+                false
+            );
 
         // Claim a subdomain as user 1.
         claim_subdomain_without_admin_approval(&user1, manager_object, sub1, vector[]);
 
         // Confirm that user 1 has the subdomain.
-        let sub1_target_addr = router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
+        let sub1_target_addr =
+            router::get_target_addr(string::utf8(TESTING_DOMAIN), option::some(sub1));
         assert!(sub1_target_addr.is_some(), 0);
         assert!(sub1_target_addr.borrow() == &signer::address_of(&user1), 0);
 
