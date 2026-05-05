@@ -201,9 +201,7 @@ module addr::subdomain_manager {
 
         // Bail if `claim_only_with_admin_approval` is true.
         if (manager_.claim_only_with_admin_approval) {
-            assert!(
-                false, error::permission_denied(E_CAN_ONLY_CLAIM_WITH_ADMIN_APPROVAL)
-            );
+            abort error::permission_denied(E_CAN_ONLY_CLAIM_WITH_ADMIN_APPROVAL)
         };
 
         claim_subdomain_inner(caller, manager_, subdomain, public_key_bytes);
@@ -234,15 +232,12 @@ module addr::subdomain_manager {
         match(subdomain_available_result) {
             SubdomainAvailableResult::AVAILABLE => {},
             SubdomainAvailableResult::SUBDOMAIN_ALREADY_CLAIMED => {
-                assert!(false, error::permission_denied(ESUBDOMAIN_ALREADY_CLAIMED));
+                abort error::permission_denied(ESUBDOMAIN_ALREADY_CLAIMED)
             },
             SubdomainAvailableResult::CANNOT_CLAIM_SUBDOMAIN_IF_DOMAIN_OWNED_BY_OTHER_ADDRESS => {
-                assert!(
-                    false,
-                    error::permission_denied(
-                        ECANNOT_CLAIM_SUBDOMAIN_IF_DOMAIN_OWNED_BY_OTHER_ADDRESS
-                    )
-                );
+                abort error::permission_denied(
+                    ECANNOT_CLAIM_SUBDOMAIN_IF_DOMAIN_OWNED_BY_OTHER_ADDRESS
+                )
             }
         };
 
