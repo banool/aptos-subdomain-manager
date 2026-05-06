@@ -33,3 +33,9 @@ To publish on testnet:
 export ANS=0x5f8fd2347449685cf41d4db97926ec3a096eaf381332be4f1318ad4d16a8497c
 aptos move publish --profile testnet --named-addresses addr=testnet,aptos_names=$ANS,aptos_names_v2_1=$ANS,router=$ANS,aptos_names_admin=$ANS,aptos_names_funds=$ANS,router_signer=$ANS
 ```
+
+To publish on mainnet:
+```
+export ANS=0x867ed1f6bf916171b1de3ee92849b8978b7d1b9e0a8cc982a3d19d535dfd9c0c
+aptos move publish --profile mainnet --named-addresses addr=mainnet,aptos_names=$ANS,aptos_names_v2_1=$ANS,router=$ANS,aptos_names_admin=$ANS,aptos_names_funds=$ANS,router_signer=$ANS
+```

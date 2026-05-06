@@ -1,6 +1,5 @@
 module addr::keyless {
     use std::error;
-    use std::vector;
     use aptos_std::hash;
     use aptos_framework::account;
 
@@ -14,8 +13,7 @@ module addr::keyless {
         let expected_authentication_key_bytes =
             account::get_authentication_key(account_address);
 
-        let pre_hash: vector<u8> = vector::empty();
-        pre_hash.push_back(3u8);
+        let pre_hash: vector<u8> = vector[3u8];
         pre_hash.append(public_key_bytes);
         pre_hash.push_back(2u8);
         let derived_authentication_key_bytes = hash::sha3_256(pre_hash);
